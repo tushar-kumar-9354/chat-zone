@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Room - {{ room_name }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 2rem;
+            background: #f0f2f5;
+        }
+        #chat-log {
+            border: 1px solid #ccc;
+            height: 300px;
+            overflow-y: scroll;
+            padding: 1rem;
+            background-color: white;
+            margin-bottom: 1rem;
+        }
+        #chat-message-input {
+            width: 70%;
+            padding: 0.5rem;
+            margin-right: 1rem;
+        }
+        #chat-message-submit {
+            padding: 0.5rem 1rem;
+        }
+    </style>
+</head>
+<body>
+    <h2>Chat Room: {{ room_name }}</h2>
+
+    <!-- Hidden spans for JavaScript -->
+    <span id="room-name" style="display:none;">"{{ room_name }}"</span>
+    <span id="username" style="display:none;">"{{ user.username }}"</span>
+
+    <div id="chat-log"></div>
+
+    <input id="chat-message-input" type="text" placeholder="Type your message...">
+    <button id="chat-message-submit">Send</button>
+
+    <script>
+        const roomName = JSON.parse(document.getElementById('room-name').textContent);
+        const username = JSON.parse(document.getElementById('username').textContent);
+
+        const chatSocket = new WebSocket(
+            'ws://' + window.location.host +
+            '/ws/chat/' + roomName + '/'
+        );
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            document.querySelector('#chat-log').innerHTML += '<div><b>' + data.username + ':</b> ' + data.message + '</div>';
+        };
+
+        chatSocket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+        };
+
+        document.querySelector('#chat-message-submit').onclick = function(e) {
+            const messageInputDom = document.querySelector('#chat-message-input');
+            const message = messageInputDom.value;
+            chatSocket.send(JSON.stringify({
+                'message': message,
+                'username': username
+            }));
+            messageInputDom.value = '';
+        };
+    </script>
+</body>
+</html>
