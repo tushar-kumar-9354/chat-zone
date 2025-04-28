@@ -36,6 +36,12 @@
         .my-message {
             background: #d1e7dd;
         }
+        .status-message {
+            text-align: center;
+            color: gray;
+            margin: 10px 0;
+            font-style: italic;
+        }
         #chat-message-input {
             width: 80%;
             padding: 10px;
@@ -77,43 +83,47 @@
     </footer>
 
     <script>
-        const roomName = "{{ room_name|escapejs }}";
+        const roomName = "{{ room_name|escapejs }}";  // Jinja2 Template Variable
         const userName = prompt("Enter your username:") || "Anonymous";
-
+    
         const chatSocket = new WebSocket(
             (window.location.protocol === 'https:' ? 'wss://' : 'ws://') +
             window.location.host +
-            '/ws/chat/' + roomName + '/'
+            '/ws/chat/' + roomName + '/?username=' + encodeURIComponent(userName)
         );
-
+    
         const notificationSound = new Audio('https://notificationsounds.com/storage/sounds/file-sounds-1151-pristine.mp3');
-
+    
         chatSocket.onmessage = function(e) {
             const data = JSON.parse(e.data);
             const chatLog = document.querySelector('#chat-log');
-
+    
             if (data.type === 'chat') {
                 const messageElement = document.createElement('div');
                 messageElement.className = 'message';
-
+    
                 if (data.username === userName) {
                     messageElement.classList.add('my-message');
                 }
-
+    
                 messageElement.innerHTML = `<strong>${data.username}</strong> [${data.timestamp}]: ${data.message}`;
                 chatLog.appendChild(messageElement);
                 chatLog.scrollTop = chatLog.scrollHeight;
-
+    
                 notificationSound.play();
-            } else if (data.type === 'typing') {
+            } 
+            else if (data.type === 'typing') {
                 showTypingIndicator(data.username);
             }
+            else if (data.type === 'user_status') {
+                showUserStatus(data.username, data.status);
+            }
         };
-
+    
         chatSocket.onclose = function(e) {
             console.error('Chat socket closed unexpectedly');
         };
-
+    
         document.querySelector('#chat-message-input').focus();
         document.querySelector('#chat-message-input').onkeyup = function(e) {
             if (e.keyCode === 13) {
@@ -122,7 +132,7 @@
                 sendTypingEvent();
             }
         };
-
+    
         document.querySelector('#chat-message-submit').onclick = function(e) {
             const messageInputDom = document.querySelector('#chat-message-input');
             const message = messageInputDom.value;
@@ -135,24 +145,41 @@
                 messageInputDom.value = '';
             }
         };
-
+    
         function sendTypingEvent() {
             chatSocket.send(JSON.stringify({
                 'type': 'typing',
                 'username': userName
             }));
         }
-
+    
         function showTypingIndicator(user) {
             const typingDiv = document.getElementById('typing-indicator');
             typingDiv.innerText = `${user} is typing...`;
-
+    
             clearTimeout(typingDiv.timeout);
             typingDiv.timeout = setTimeout(() => {
                 typingDiv.innerText = '';
             }, 2000);
         }
-    </script>
+    
+        function showUserStatus(user, status) {
+            const chatLog = document.querySelector('#chat-log');
+            const statusElement = document.createElement('div');
+            statusElement.className = 'status-message';
+            if (status === 'online') {
+                statusElement.innerHTML = `<em>🟢 ${user} is online</em>`;
+            } else {
+                statusElement.innerHTML = `<em>🔴 ${user} went offline</em>`;
+            }
+            chatLog.appendChild(statusElement);
+            chatLog.scrollTop = chatLog.scrollHeight;
 
+            // Remove status after 3 seconds
+            setTimeout(() => {
+                chatLog.removeChild(statusElement);
+            }, 5000);
+        }
+    </script>
 </body>
 </html>
