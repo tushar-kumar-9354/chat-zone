@@ -1,70 +1,158 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Chat Room - {{ room_name }}</title>
+    <meta charset="UTF-8">
+    <title>ChatZone 💬</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            padding: 2rem;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #f0f2f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        header {
+            background: #4a76a8;
+            color: white;
+            padding: 10px 20px;
+            font-size: 24px;
+            font-weight: bold;
         }
         #chat-log {
-            border: 1px solid #ccc;
-            height: 300px;
-            overflow-y: scroll;
-            padding: 1rem;
-            background-color: white;
-            margin-bottom: 1rem;
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #e5e7eb;
+        }
+        .message {
+            background: white;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .my-message {
+            background: #d1e7dd;
         }
         #chat-message-input {
-            width: 70%;
-            padding: 0.5rem;
-            margin-right: 1rem;
+            width: 80%;
+            padding: 10px;
+            margin-right: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            outline: none;
         }
         #chat-message-submit {
-            padding: 0.5rem 1rem;
+            padding: 10px 20px;
+            border: none;
+            background: #4a76a8;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        footer {
+            display: flex;
+            padding: 10px 20px;
+            background: #ffffff;
+            border-top: 1px solid #ccc;
+        }
+        #typing-indicator {
+            color: gray;
+            padding: 5px 20px;
+            font-style: italic;
         }
     </style>
 </head>
 <body>
-    <h2>Chat Room: {{ room_name }}</h2>
+    <header>ChatZone 🚀</header>
 
-    <!-- Hidden spans for JavaScript -->
-    <span id="room-name" style="display:none;">"{{ room_name }}"</span>
-    <span id="username" style="display:none;">"{{ user.username }}"</span>
-
+    <div id="typing-indicator"></div>
     <div id="chat-log"></div>
 
-    <input id="chat-message-input" type="text" placeholder="Type your message...">
-    <button id="chat-message-submit">Send</button>
+    <footer>
+        <input id="chat-message-input" type="text" placeholder="Type your message here...">
+        <button id="chat-message-submit">Send</button>
+    </footer>
 
     <script>
-        const roomName = JSON.parse(document.getElementById('room-name').textContent);
-        const username = JSON.parse(document.getElementById('username').textContent);
+        const roomName = "{{ room_name|escapejs }}";
+        const userName = prompt("Enter your username:") || "Anonymous";
 
         const chatSocket = new WebSocket(
-            'ws://' + window.location.host +
+            (window.location.protocol === 'https:' ? 'wss://' : 'ws://') +
+            window.location.host +
             '/ws/chat/' + roomName + '/'
         );
 
+        const notificationSound = new Audio('https://notificationsounds.com/storage/sounds/file-sounds-1151-pristine.mp3');
+
         chatSocket.onmessage = function(e) {
             const data = JSON.parse(e.data);
-            document.querySelector('#chat-log').innerHTML += '<div><b>' + data.username + ':</b> ' + data.message + '</div>';
+            const chatLog = document.querySelector('#chat-log');
+
+            if (data.type === 'chat') {
+                const messageElement = document.createElement('div');
+                messageElement.className = 'message';
+
+                if (data.username === userName) {
+                    messageElement.classList.add('my-message');
+                }
+
+                messageElement.innerHTML = `<strong>${data.username}</strong> [${data.timestamp}]: ${data.message}`;
+                chatLog.appendChild(messageElement);
+                chatLog.scrollTop = chatLog.scrollHeight;
+
+                notificationSound.play();
+            } else if (data.type === 'typing') {
+                showTypingIndicator(data.username);
+            }
         };
 
         chatSocket.onclose = function(e) {
             console.error('Chat socket closed unexpectedly');
         };
 
+        document.querySelector('#chat-message-input').focus();
+        document.querySelector('#chat-message-input').onkeyup = function(e) {
+            if (e.keyCode === 13) {
+                document.querySelector('#chat-message-submit').click();
+            } else {
+                sendTypingEvent();
+            }
+        };
+
         document.querySelector('#chat-message-submit').onclick = function(e) {
             const messageInputDom = document.querySelector('#chat-message-input');
             const message = messageInputDom.value;
-            chatSocket.send(JSON.stringify({
-                'message': message,
-                'username': username
-            }));
-            messageInputDom.value = '';
+            if (message.trim() !== "") {
+                chatSocket.send(JSON.stringify({
+                    'type': 'chat',
+                    'message': message,
+                    'username': userName
+                }));
+                messageInputDom.value = '';
+            }
         };
+
+        function sendTypingEvent() {
+            chatSocket.send(JSON.stringify({
+                'type': 'typing',
+                'username': userName
+            }));
+        }
+
+        function showTypingIndicator(user) {
+            const typingDiv = document.getElementById('typing-indicator');
+            typingDiv.innerText = `${user} is typing...`;
+
+            clearTimeout(typingDiv.timeout);
+            typingDiv.timeout = setTimeout(() => {
+                typingDiv.innerText = '';
+            }, 2000);
+        }
     </script>
+
 </body>
 </html>
